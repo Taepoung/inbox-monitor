@@ -92,7 +92,7 @@ The sender is a regular expression that the whole address must match (case-insen
 
 | Option | |
 |---|---|
-| `--timeout S` | give up after S seconds (default 300, 0 = never) |
+| `--timeout S` | give up after S seconds (default 300) |
 | `--interval S` | seconds between checks (default 3) |
 
 The whole mail is printed as plain text (HTML mail is converted).

@@ -15,7 +15,7 @@ COMMANDS
       Delete an account and its saved password. Asks first unless -y is given.
   inbox-monitor watch <account> <sender-regex> [--timeout S] [--interval S]
       Wait for the next mail whose sender address matches, print it, exit.
-        --timeout S   give up after S seconds (default 300, 0 = never)
+        --timeout S   give up after S seconds (default 300)
         --interval S  seconds between checks (default 3)
   inbox-monitor help
       Show this help. `inbox-monitor <command> -h` shows the options of one command.
