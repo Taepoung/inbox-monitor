@@ -33,7 +33,7 @@ def read_config():
 def load_account(name):
     config = read_config()
     if not config.has_section(name):
-        known = ", ".join(config.sections()) or "none; run `mail-otp add <name>`"
+        known = ", ".join(config.sections()) or "none; run `mail-otp add`"
         raise SystemExit(f"no account '{name}' (accounts: {known})")
     section = config[name]
     return {
@@ -187,10 +187,28 @@ def cmd_add(args):
     print(f"saved '{name}': {user} @ {host}:{port}")
 
 
+def cmd_del(args):
+    config = read_config()
+    if not config.has_section(args.name):
+        known = ", ".join(config.sections()) or "none"
+        raise SystemExit(f"no account '{args.name}' (accounts: {known})")
+    section = config[args.name]
+    if not args.yes:
+        answer = input(f"delete '{args.name}' ({section['user']} @ {section['host']})? [y/N] ").strip().lower()
+        if answer not in ("y", "yes"):
+            print("cancelled")
+            return
+    config.remove_section(args.name)
+    with open(ACCOUNTS_FILE, "w") as f:
+        config.write(f)
+    (CONFIG_DIR / f"{args.name}.pw").unlink(missing_ok=True)
+    print(f"deleted '{args.name}'")
+
+
 def cmd_list(args):
     config = read_config()
     if not config.sections():
-        print("no accounts; run `mail-otp add <name>`")
+        print("no accounts; run `mail-otp add`")
         return
     for name in config.sections():
         section = config[name]
@@ -272,6 +290,10 @@ def main():
 
     sub.add_parser("list", help="list accounts")
 
+    delete = sub.add_parser("del", help="delete an account and its saved password")
+    delete.add_argument("name", help="account name from `mail-otp list`")
+    delete.add_argument("-y", "--yes", action="store_true", help="don't ask for confirmation")
+
     watch = sub.add_parser(
         "watch", help="wait for the next mail from a sender and print it",
         description="Wait for the next mail whose sender address fully matches the regular expression "
@@ -293,6 +315,8 @@ def main():
         cmd_add(args)
     elif args.command == "list":
         cmd_list(args)
+    elif args.command == "del":
+        cmd_del(args)
     elif args.command == "watch":
         cmd_watch(args)
     else:

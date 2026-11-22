@@ -73,6 +73,7 @@ Adding an existing name replaces it. The login is tested before anything is save
 ```bash
 mail-otp add                                  # add an IMAP account
 mail-otp list                                 # list accounts
+mail-otp del naver                            # delete an account and its saved password
 mail-otp watch naver 'noreply@github\.com'    # wait for the next mail from it, print it, exit
 mail-otp help                                 # full help, including a section for AI agents
 ```
