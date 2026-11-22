@@ -163,8 +163,9 @@ def cmd_add(args):
     name = args.name or ask("name (used in list/watch)")
     if not NAME_RE.fullmatch(name):
         raise SystemExit("name may only contain letters, digits, '-' and '_'")
+    # 호스트를 인자로 받았으면 포트도 묻지 않고 기본값을 쓴다
     host = args.host or ask("IMAP host (e.g. imap.naver.com)")
-    port = args.port or ask("port", "993")
+    port = args.port or ("993" if args.host else ask("port", "993"))
     if not str(port).isdigit():
         raise SystemExit(f"port must be a number: {port}")
     port = int(port)

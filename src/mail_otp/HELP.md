@@ -6,8 +6,9 @@ and never changes the mailbox (read-only).
 COMMANDS
   mail-otp add [name] [--host H] [--port P] [--user U]
       Add or update an IMAP account. Asks for anything not given: name (used in
-      list/watch), IMAP host, port (default 993), user, password. The login is
-      tested before saving; adding an existing name replaces it.
+      list/watch), IMAP host, port, user, password. Port is 993 unless given; it is
+      only asked when the host is asked too. The password is always asked.
+      The login is tested before saving; adding an existing name replaces it.
   mail-otp list
       List accounts: name, user, host:port.
   mail-otp watch <account> <sender-regex> [--timeout S] [--keep] [--full] [--interval S]
