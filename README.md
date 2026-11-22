@@ -35,6 +35,19 @@ Verification code: 482913
 | **pipx** | `pipx install inbox-monitor` |
 | **pip** | `pip install inbox-monitor` |
 
+### Windows: "blocked by an application control policy"
+
+pip, uv and pipx create a small unsigned `inbox-monitor.exe` launcher when they install.
+Smart App Control or a company application control policy may block it.
+Run it through Python instead; everything works the same:
+
+```powershell
+python -m inbox_monitor add
+python -m inbox_monitor watch naver 'no-reply@example\.com'
+```
+
+When you set this up for an AI agent on Windows, tell it to use `python -m inbox_monitor` as well.
+
 ## Setup
 
 ### 1. Turn on IMAP and get an app password
