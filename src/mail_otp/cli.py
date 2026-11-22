@@ -1,4 +1,4 @@
-"""mail-otp: wait for verification mail and print its code (read-only IMAP)."""
+"""mail-otp: wait for the next mail from a sender and print it (read-only IMAP)."""
 import argparse
 import configparser
 import datetime as dt
@@ -19,8 +19,6 @@ from . import __version__
 
 CONFIG_DIR = Path(os.environ.get("MAIL_OTP_HOME", "~/.config/mail-otp")).expanduser()
 ACCOUNTS_FILE = CONFIG_DIR / "accounts.ini"
-CODE_RE = re.compile(r"(?<![\d-])(\d{4,8})(?![\d-])")
-KEYWORDS = re.compile(r"인증|코드|번호|code|verif|otp|pin|login|로그인", re.I)
 NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
 
 
@@ -62,20 +60,10 @@ def body_text(msg):
     if plain:
         return "\n".join(plain)
     text = re.sub(r"<(script|style).*?</\1>", " ", "\n".join(rich), flags=re.S | re.I)
+    # 링크 주소는 남기고, 문단·줄바꿈 태그는 줄바꿈으로 바꾼다
+    text = re.sub(r"""<a\s[^>]*?href\s*=\s*["']([^"']+)["'][^>]*>(.*?)</a>""", r"\2 (\1)", text, flags=re.S | re.I)
+    text = re.sub(r"<br\s*/?>|</(p|div|tr|li|h[1-6]|table)>", "\n", text, flags=re.I)
     return html.unescape(re.sub(r"<[^>]+>", " ", text))
-
-
-def candidates(text):
-    """인증 관련 단어가 있는 줄의 숫자를 먼저, 나머지 숫자는 그 뒤에."""
-    near, rest = [], []
-    for line in text.splitlines():
-        for code in CODE_RE.findall(line):
-            (near if KEYWORDS.search(line) else rest).append(code)
-    seen = []
-    for code in near + rest:
-        if code not in seen:
-            seen.append(code)
-    return seen[:5]
 
 
 def connect(account):
@@ -96,8 +84,8 @@ def parse(raw, pattern):
         when = dt.datetime.now(dt.timezone.utc)
     if when.tzinfo is None:
         when = when.replace(tzinfo=dt.timezone.utc)
-    text = re.sub(r"[ \t\r\f\v]+", " ", body_text(msg))
-    return when, sender, subject, re.sub(r"\n\s*\n+", "\n", text).strip()
+    lines = (re.sub(r"[ \t\r\f\v]+", " ", line).strip() for line in body_text(msg).splitlines())
+    return when, sender, subject, "\n".join(line for line in lines if line)
 
 
 class Watcher:
@@ -136,12 +124,12 @@ class Watcher:
             pass
 
 
-def show(name, mail, full):
+def show(name, mail):
     when, sender, subject, text = mail
     print(f"--- [{name}] {when.astimezone():%Y-%m-%d %H:%M} | {sender}")
     print(f"subject: {subject}")
-    print(f"codes:   {', '.join(candidates(subject + chr(10) + text)) or '-'}")
-    print(text if full else text[:300])
+    print()
+    print(text)
     print(flush=True)
 
 
@@ -246,7 +234,7 @@ def cmd_watch(args):
                     continue
                 if sys.stdout.isatty():
                     print("\a", end="")
-                show(account["name"], mail, args.full)
+                show(account["name"], mail)
                 if not args.keep:
                     return
             time.sleep(args.interval)
@@ -306,7 +294,6 @@ def main():
     watch.add_argument("sender", help="regular expression for the sender address")
     watch.add_argument("--timeout", type=int, help="give up after this many seconds (default 300, 0 = never)")
     watch.add_argument("--keep", action="store_true", help="keep watching after the first mail (no timeout by default)")
-    watch.add_argument("--full", action="store_true", help="print the full body (for login links)")
     watch.add_argument("--interval", type=float, default=3, help="seconds between checks (default 3)")
 
     sub.add_parser("help", help="show the full help")

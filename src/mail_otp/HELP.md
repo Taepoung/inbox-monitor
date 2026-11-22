@@ -1,4 +1,4 @@
-mail-otp: wait for a verification mail and print its code
+mail-otp: wait for the next mail from a sender and print it
 
 Shows only mail from the sender you name, only mail that arrives after you start,
 and never changes the mailbox (read-only).
@@ -13,11 +13,10 @@ COMMANDS
       List accounts: name, user, host:port.
   mail-otp del <name> [-y]
       Delete an account and its saved password. Asks first unless -y is given.
-  mail-otp watch <account> <sender-regex> [--timeout S] [--keep] [--full] [--interval S]
+  mail-otp watch <account> <sender-regex> [--timeout S] [--keep] [--interval S]
       Wait for the next mail whose sender address matches, print it, exit.
         --timeout S   give up after S seconds (default 300, 0 = never)
         --keep        keep watching and print every new mail (no timeout by default)
-        --full        print the whole body (for login links)
         --interval S  seconds between checks (default 3)
   mail-otp help
       Show this help. `mail-otp <command> -h` shows the options of one command.
@@ -31,11 +30,13 @@ SENDER REGEX
 OUTPUT
     --- [naver] 2026-11-22 16:20 | GitHub <noreply@github.com>
     subject: [GitHub] Please verify your device
-    codes:   482913, 2026
-    Hey there! A sign in attempt requires further verification ...
 
-  `codes:` lists numbers found in the mail, the most likely code first. It is a guess:
-  check it against the subject and body.
+    Hey there! A sign in attempt requires further verification ...
+    Verification code: 482913
+    ...
+
+  The whole mail is printed as plain text (HTML mail is converted).
+  Find the code or login link in it yourself.
 
 EXIT CODES
   0  mail printed
@@ -59,7 +60,7 @@ FOR AI AGENTS
     1. `mail-otp list` and pick the account the service sends to. If unsure, ask the user.
     2. Write a regex for the service's sender address (prefer the exact address or domain).
     3. Start `mail-otp watch <account> '<regex>'` in the background BEFORE requesting the code.
-    4. Request the code, wait for mail-otp to exit, and use the code from its output.
+    4. Request the code, wait for mail-otp to exit, and find the code or link in the printed mail.
        If the code was requested before the watcher started, the mail is missed:
        start the watcher again and request a new code.
 

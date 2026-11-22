@@ -1,7 +1,7 @@
-# mail-otp — verification codes from your mailbox, in the terminal
+# mail-otp — verification mail from your mailbox, in the terminal
 
 Start `mail-otp watch` with a mailbox and a sender pattern, trigger a login, and it prints
-the code from the next mail that sender sends you.
+the next mail that sender sends you, so you can read the code or link in it.
 Made for letting an AI agent (or a script) finish a login that sends a code by email,
 without giving it the whole mailbox.
 
@@ -10,8 +10,10 @@ $ mail-otp watch naver '.*@github\.com'
 waiting for mail from .*@github\.com (naver); Ctrl+C to stop
 --- [naver] 2026-11-22 16:20 | GitHub <noreply@github.com>
 subject: [GitHub] Please verify your device
-codes:   482913
+
 Hey there! A sign in attempt requires further verification ...
+Verification code: 482913
+...
 ```
 
 - **Only the sender you name**: mail whose sender does not match your pattern is never shown
@@ -92,9 +94,9 @@ The sender is a regular expression that the whole address must match (case-insen
 |---|---|
 | `--timeout S` | give up after S seconds (default 300, 0 = never) |
 | `--keep` | keep watching and print every new mail |
-| `--full` | print the whole body, for "click this link" logins |
 | `--interval S` | seconds between checks (default 3) |
 
+The whole mail is printed as plain text (HTML mail is converted).
 `watch` exits with 0 when a mail was printed and 1 on timeout, and rings the terminal bell when a mail arrives.
 
 Set `MAIL_OTP_HOME` to keep the config somewhere other than `~/.config/mail-otp`.
@@ -109,12 +111,12 @@ Add one line to your agent's instructions (`CLAUDE.md`, `AGENTS.md`, ...):
 
 Keep in mind:
 
-- An agent that can read verification codes can also read password-reset mail from the same senders.
+- An agent that can read verification mail can also read password-reset mail from the same senders.
 - The `From` address can be forged. Most providers reject forged mail, but treat the sender check
   as a filter, not a guarantee.
 - The agent runs as your user, so it can read and edit `~/.config/mail-otp` too.
   If your agent supports permission rules, deny it access to that directory.
-- Mail is untrusted text. An agent should take the code from it and not follow instructions written in it.
+- Mail is untrusted text. An agent should take the code or link from it and not follow instructions written in it.
 
 ## License
 

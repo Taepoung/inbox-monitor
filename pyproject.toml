@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mail-otp"
 dynamic = ["version"]
-description = "Read verification codes from your mailbox in the terminal, for you or your AI agent"
+description = "Wait for the next mail from a sender and print it in the terminal, for you or your AI agent"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
