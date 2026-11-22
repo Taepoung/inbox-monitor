@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mail-otp"
+dynamic = ["version"]
+description = "Read verification codes from your mailbox in the terminal, for you or your AI agent"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "TaeinYoon" }]
+keywords = ["imap", "otp", "2fa", "email", "cli", "agent"]
+requires-python = ">=3.10"
+dependencies = []
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Topic :: Communications :: Email",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://github.com/Taepoung/mail-otp"
+Repository = "https://github.com/Taepoung/mail-otp"
+Issues = "https://github.com/Taepoung/mail-otp/issues"
+
+[project.scripts]
+mail-otp = "mail_otp.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "mail_otp.__version__" }
