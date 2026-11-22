@@ -1,11 +1,12 @@
 # mail-otp — verification codes from your mailbox, in the terminal
 
-Print the verification codes that arrived in your mailbox in the last few minutes.
+Start `mail-otp`, trigger a login, and it prints the code from the next verification mail that arrives.
 Made for letting an AI agent (or a script) finish a login that sends a code by email,
 without giving it the whole mailbox.
 
 ```
-$ mail-otp --since 5
+$ mail-otp
+waiting for new mail (naver); Ctrl+C to stop
 --- [naver] 2026-11-22 16:20 | GitHub <noreply@github.com>
 subject: [GitHub] Please verify your device
 codes:   482913
@@ -14,7 +15,7 @@ Hey there! A sign in attempt requires further verification ...
 
 - **Only senders you allow**: mail from anyone not in your allow list is never shown
 - **Read-only**: opens the inbox read-only and does not mark mail as read
-- **Recent mail only**: the last 10 minutes by default
+- **New mail only**: waits for mail that arrives after you start it, then exits
 - **Any IMAP mailbox**: Naver, Gmail, Daum/Kakao, Yahoo, iCloud, or your own server; several accounts at once
 - **No dependencies**: Python standard library only
 
@@ -66,12 +67,17 @@ If the list is empty, nothing is shown.
 ## Usage
 
 ```bash
-mail-otp                       # all accounts, last 10 minutes
-mail-otp --since 5             # last 5 minutes
+mail-otp                       # wait for the next allowed mail, print it, exit (gives up after 5 minutes)
+mail-otp --timeout 60          # give up after 60 seconds (0 = never)
+mail-otp --keep                # keep watching and print every new mail
 mail-otp --from github         # narrow by sender or subject
 mail-otp --account gmail       # one account only
 mail-otp --full                # the whole body, for "click this link" logins
+mail-otp recent --since 10     # mail that already arrived in the last 10 minutes
 ```
+
+`mail-otp` exits with 0 when a mail was printed and 1 on timeout. It checks every 3 seconds (`--interval`)
+and rings the terminal bell when a mail arrives.
 
 Set `MAIL_OTP_HOME` to keep the config somewhere other than `~/.config/mail-otp`.
 
@@ -79,7 +85,9 @@ Set `MAIL_OTP_HOME` to keep the config somewhere other than `~/.config/mail-otp`
 
 Tell the agent something like:
 
-> When a login asks for an email verification code, run `mail-otp --since 5` and use the code.
+> When a login sends a verification code by email, start `mail-otp` in the background *before*
+> requesting the code, then request it and use the code `mail-otp` prints.
+> If the code was already sent, use `mail-otp recent --since 5` instead.
 
 Keep in mind:
 

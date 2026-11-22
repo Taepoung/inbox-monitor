@@ -1,4 +1,4 @@
-"""mail-otp: print recent verification codes from IMAP mailboxes (read-only)."""
+"""mail-otp: wait for verification mail and print its code (read-only IMAP)."""
 import argparse
 import configparser
 import datetime as dt
@@ -9,6 +9,7 @@ import imaplib
 import os
 import re
 import sys
+import time
 from email.header import decode_header, make_header
 from email.utils import parseaddr, parsedate_to_datetime
 from pathlib import Path
@@ -124,8 +125,26 @@ def connect(account):
     return imap
 
 
-def fetch(account, cutoff, allowlist, sender_filter):
-    """cutoff 이후 허용된 발신자의 메일을 (when, sender, subject, text)로 돌려준다."""
+def parse(raw, allowlist, sender_filter):
+    """허용된 발신자의 메일이면 (when, sender, subject, text), 아니면 None."""
+    msg = email.message_from_bytes(raw)
+    sender, subject = header(msg, "From"), header(msg, "Subject")
+    if not allowed(parseaddr(sender)[1].lower(), allowlist):
+        return None
+    if sender_filter and sender_filter.lower() not in (sender + subject).lower():
+        return None
+    try:
+        when = parsedate_to_datetime(msg["Date"])
+    except (TypeError, ValueError):
+        when = dt.datetime.now(dt.timezone.utc)
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=dt.timezone.utc)
+    text = re.sub(r"[ \t\r\f\v]+", " ", body_text(msg))
+    return when, sender, subject, re.sub(r"\n\s*\n+", "\n", text).strip()
+
+
+def fetch_recent(account, cutoff, allowlist, sender_filter):
+    """cutoff 이후 허용된 발신자의 메일을 최신순으로 돌려준다."""
     imap = connect(account)
     # readonly + BODY.PEEK: 읽음 표시도 남기지 않는다
     imap.select("INBOX", readonly=True)
@@ -133,23 +152,54 @@ def fetch(account, cutoff, allowlist, sender_filter):
     _, data = imap.search(None, "SINCE", since)
     for msg_id in reversed(data[0].split()[-50:]):
         _, parts = imap.fetch(msg_id, "(BODY.PEEK[])")
-        msg = email.message_from_bytes(parts[0][1])
-        try:
-            when = parsedate_to_datetime(msg["Date"])
-        except (TypeError, ValueError):
-            continue
-        if when.tzinfo is None:
-            when = when.replace(tzinfo=dt.timezone.utc)
-        if when < cutoff:
-            continue
-        sender, subject = header(msg, "From"), header(msg, "Subject")
-        if not allowed(parseaddr(sender)[1].lower(), allowlist):
-            continue
-        if sender_filter and sender_filter.lower() not in (sender + subject).lower():
-            continue
-        text = re.sub(r"[ \t\r\f\v]+", " ", body_text(msg))
-        yield when, sender, subject, re.sub(r"\n\s*\n+", "\n", text).strip()
+        mail = parse(parts[0][1], allowlist, sender_filter)
+        if mail and mail[0] >= cutoff:
+            yield mail
     imap.logout()
+
+
+class Watcher:
+    """한 계정의 INBOX에서 시작 시점 이후에 도착한 메일만 골라낸다."""
+
+    def __init__(self, account):
+        self.account = account
+        self.imap = connect(account)
+        _, data = self.imap.status("INBOX", "(UIDNEXT)")
+        self.next_uid = int(re.search(rb"UIDNEXT (\d+)", data[0])[1])
+        self.imap.select("INBOX", readonly=True)
+
+    def reconnect(self):
+        """서버가 오래된 연결을 끊었을 때 다시 붙는다. 기준 UID는 그대로 둔다."""
+        self.close()
+        self.imap = connect(self.account)
+        self.imap.select("INBOX", readonly=True)
+
+    def poll(self):
+        """새로 도착한 메일의 원문을 차례로 돌려준다."""
+        self.imap.noop()
+        _, data = self.imap.uid("SEARCH", None, f"UID {self.next_uid}:*")
+        # "n:*"는 새 메일이 없어도 마지막 메일을 돌려주므로 UID로 다시 거른다
+        uids = sorted(int(u) for u in data[0].split() if int(u) >= self.next_uid)
+        for uid in uids:
+            _, parts = self.imap.uid("FETCH", str(uid), "(BODY.PEEK[])")
+            self.next_uid = uid + 1
+            if parts and isinstance(parts[0], tuple):
+                yield parts[0][1]
+
+    def close(self):
+        try:
+            self.imap.logout()
+        except (imaplib.IMAP4.error, OSError):
+            pass
+
+
+def show(name, mail, full):
+    when, sender, subject, text = mail
+    print(f"--- [{name}] {when.astimezone():%Y-%m-%d %H:%M} | {sender}")
+    print(f"subject: {subject}")
+    print(f"codes:   {', '.join(candidates(subject + chr(10) + text)) or '-'}")
+    print(text if full else text[:300])
+    print(flush=True)
 
 
 def write_private(path, text):
@@ -190,45 +240,96 @@ def cmd_add(args):
         print(f"next: add allowed senders to {ALLOW_FILE}")
 
 
-def cmd_check(args):
+def require_setup(only):
     allowlist = load_allowlist()
     if not allowlist:
         raise SystemExit(f"no allowed senders: add addresses to {ALLOW_FILE}")
-    accounts = load_accounts(args.account)
+    accounts = load_accounts(only)
     if not accounts:
         raise SystemExit("no accounts: run `mail-otp add <name>` first")
-    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=args.since)
+    return allowlist, accounts
 
+
+def cmd_watch(args):
+    allowlist, accounts = require_setup(args.account)
+    watchers = []
+    for account in accounts:
+        try:
+            watchers.append(Watcher(account))
+        except (imaplib.IMAP4.error, OSError) as e:
+            print(f"[{account['name']}] error: {e}", file=sys.stderr)
+    if not watchers:
+        raise SystemExit("could not connect to any account")
+
+    timeout = args.timeout if args.timeout is not None else (0 if args.keep else 300)
+    deadline = time.monotonic() + timeout if timeout else None
+    names = ", ".join(w.account["name"] for w in watchers)
+    print(f"waiting for new mail ({names}); Ctrl+C to stop", file=sys.stderr, flush=True)
+    try:
+        while deadline is None or time.monotonic() < deadline:
+            for watcher in watchers:
+                try:
+                    raws = list(watcher.poll())
+                except (imaplib.IMAP4.abort, OSError):
+                    try:
+                        watcher.reconnect()
+                    except (imaplib.IMAP4.error, OSError) as e:
+                        print(f"[{watcher.account['name']}] reconnect failed: {e}", file=sys.stderr)
+                    continue
+                for raw in raws:
+                    mail = parse(raw, allowlist, args.sender)
+                    if not mail:
+                        continue
+                    if sys.stdout.isatty():
+                        print("\a", end="")
+                    show(watcher.account["name"], mail, args.full)
+                    if not args.keep:
+                        return
+            time.sleep(args.interval)
+    except KeyboardInterrupt:
+        return
+    finally:
+        for watcher in watchers:
+            watcher.close()
+    print(f"no new mail from allowed senders within {timeout} seconds", file=sys.stderr)
+    sys.exit(1)
+
+
+def cmd_recent(args):
+    allowlist, accounts = require_setup(args.account)
+    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=args.since)
     found = 0
     for account in accounts:
         try:
-            for when, sender, subject, text in fetch(account, cutoff, allowlist, args.sender):
+            for mail in fetch_recent(account, cutoff, allowlist, args.sender):
                 found += 1
-                print(f"--- [{account['name']}] {when.astimezone():%Y-%m-%d %H:%M} | {sender}")
-                print(f"subject: {subject}")
-                print(f"codes:   {', '.join(candidates(subject + chr(10) + text)) or '-'}")
-                print(text if args.full else text[:300])
-                print()
+                show(account["name"], mail, args.full)
         except (imaplib.IMAP4.error, OSError) as e:
             print(f"[{account['name']}] error: {e}", file=sys.stderr)
-
     if not found:
         print(f"no mail from allowed senders in the last {args.since} minutes")
 
 
 def main():
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--from", dest="sender", help="substring of sender or subject to narrow allowed mail")
+    common.add_argument("--account", help="use only this account")
+    common.add_argument("--full", action="store_true", help="print the full body (for magic links)")
+
     ap = argparse.ArgumentParser(
         prog="mail-otp",
-        description="Print recent verification codes from IMAP mailboxes (read-only).",
+        description="Wait for the next verification mail and print its code (read-only IMAP).",
         epilog=EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[common],
     )
     ap.add_argument("-V", "--version", action="version", version=f"mail-otp {__version__}")
-    ap.add_argument("--since", type=int, default=10, help="minutes to look back (default 10)")
-    ap.add_argument("--from", dest="sender", help="substring of sender or subject to narrow allowed mail")
-    ap.add_argument("--account", help="check only this account")
-    ap.add_argument("--full", action="store_true", help="print the full body (for magic links)")
+    ap.add_argument("--timeout", type=int, help="give up after this many seconds (default 300, 0 = never)")
+    ap.add_argument("--keep", action="store_true", help="keep watching after the first mail (no timeout by default)")
+    ap.add_argument("--interval", type=float, default=3, help="seconds between checks (default 3)")
     sub = ap.add_subparsers(dest="command")
+    recent = sub.add_parser("recent", parents=[common], help="show mail that already arrived")
+    recent.add_argument("--since", type=int, default=10, help="minutes to look back (default 10)")
     add = sub.add_parser("add", help="add or update an account (tests the login before saving)")
     add.add_argument("name", help=f"account name; {', '.join(KNOWN_HOSTS)} fill in the host")
     add.add_argument("--host", help="IMAP server")
@@ -238,5 +339,7 @@ def main():
 
     if args.command == "add":
         cmd_add(args)
+    elif args.command == "recent":
+        cmd_recent(args)
     else:
-        cmd_check(args)
+        cmd_watch(args)
