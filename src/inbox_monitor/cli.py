@@ -215,8 +215,7 @@ def cmd_watch(args):
     except (imaplib.IMAP4.error, OSError) as e:
         raise SystemExit(f"[{account['name']}] error: {e}")
 
-    timeout = args.timeout if args.timeout is not None else (0 if args.keep else 300)
-    deadline = time.monotonic() + timeout if timeout else None
+    deadline = time.monotonic() + args.timeout if args.timeout else None
     print(f"waiting for mail from {args.sender} ({account['name']}); Ctrl+C to stop", file=sys.stderr, flush=True)
     try:
         while deadline is None or time.monotonic() < deadline:
@@ -235,14 +234,13 @@ def cmd_watch(args):
                 if sys.stdout.isatty():
                     print("\a", end="")
                 show(account["name"], mail)
-                if not args.keep:
-                    return
+                return
             time.sleep(args.interval)
     except KeyboardInterrupt:
         return
     finally:
         watcher.close()
-    print(f"no new mail from {args.sender} within {timeout} seconds", file=sys.stderr)
+    print(f"no new mail from {args.sender} within {args.timeout} seconds", file=sys.stderr)
     sys.exit(1)
 
 
@@ -292,8 +290,7 @@ def main():
     )
     watch.add_argument("account", help="account name from `inbox-monitor list`")
     watch.add_argument("sender", help="regular expression for the sender address")
-    watch.add_argument("--timeout", type=int, help="give up after this many seconds (default 300, 0 = never)")
-    watch.add_argument("--keep", action="store_true", help="keep watching after the first mail (no timeout by default)")
+    watch.add_argument("--timeout", type=int, default=300, help="give up after this many seconds (default 300, 0 = never)")
     watch.add_argument("--interval", type=float, default=3, help="seconds between checks (default 3)")
 
     sub.add_parser("help", help="show the full help")
