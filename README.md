@@ -50,7 +50,7 @@ Hey there! A sign in attempt requires further verification ...
 $ mail-otp add
 name (used in list/watch): naver
 IMAP host (e.g. imap.naver.com): imap.naver.com
-port [993]:
+port (usually 993): 993
 user: myid
 password (app password if you use 2-step login):
 saved 'naver': myid @ imap.naver.com:993
@@ -63,7 +63,7 @@ saved 'naver': myid @ imap.naver.com:993
 | Daum | `imap.daum.net` |
 | Kakao | `imap.kakao.com` |
 
-Everything except the password can also be given on the command line:
+Everything except the password can also be given on the command line, and only what is missing is asked:
 `mail-otp add work --host imap.example.com --port 993 --user me@example.com`.
 Adding an existing name replaces it. The login is tested before anything is saved. The password is stored in
 `~/.config/mail-otp/<name>.pw` with mode 600.

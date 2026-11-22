@@ -151,21 +151,20 @@ def write_private(path, text):
     os.chmod(path, 0o600)
 
 
-def ask(prompt, default=None):
-    """값을 물어보고, 빈 입력이면 기본값을 쓴다. 기본값도 없으면 다시 묻는다."""
+def ask(prompt):
+    """빈 값이 아닐 때까지 묻는다."""
     while True:
-        value = input(f"{prompt} [{default}]: " if default else f"{prompt}: ").strip()
-        if value or default:
-            return value or default
+        value = input(f"{prompt}: ").strip()
+        if value:
+            return value
 
 
 def cmd_add(args):
     name = args.name or ask("name (used in list/watch)")
     if not NAME_RE.fullmatch(name):
         raise SystemExit("name may only contain letters, digits, '-' and '_'")
-    # 호스트를 인자로 받았으면 포트도 묻지 않고 기본값을 쓴다
     host = args.host or ask("IMAP host (e.g. imap.naver.com)")
-    port = args.port or ("993" if args.host else ask("port", "993"))
+    port = args.port or ask("port (usually 993)")
     if not str(port).isdigit():
         raise SystemExit(f"port must be a number: {port}")
     port = int(port)
@@ -268,7 +267,7 @@ def main():
                                      "the password is always asked. The login is tested before saving.")
     add.add_argument("name", nargs="?", help="name to use in list/watch")
     add.add_argument("--host", help="IMAP server, e.g. imap.naver.com")
-    add.add_argument("--port", help="IMAP SSL port (default 993)")
+    add.add_argument("--port", help="IMAP SSL port, usually 993")
     add.add_argument("--user", help="login name")
 
     sub.add_parser("list", help="list accounts")
