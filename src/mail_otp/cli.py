@@ -12,6 +12,7 @@ import sys
 import time
 from email.header import decode_header, make_header
 from email.utils import parseaddr, parsedate_to_datetime
+from importlib.resources import files
 from pathlib import Path
 
 from . import __version__
@@ -39,7 +40,8 @@ config: {CONFIG_DIR}
   <name>.pw      password for that account, mode 600
   allow          optional: if present, only these senders may be watched, one per line
 
-sender: noreply@github.com (exact address) or @github.com (domain and its subdomains)
+sender: noreply@github.com (exact address) or @github.com (domain and its subdomains);
+        with -E, a regular expression the whole address must match, e.g. '.*@(github|gitlab)\\.com'
 """
 
 
@@ -125,12 +127,12 @@ def connect(account):
     return imap
 
 
-def parse(raw, senders, allowlist):
+def parse(raw, match, allowlist):
     """지정한 발신자의 메일이면 (when, sender, subject, text), 아니면 None."""
     msg = email.message_from_bytes(raw)
     sender, subject = header(msg, "From"), header(msg, "Subject")
     address = parseaddr(sender)[1].lower()
-    if not allowed(address, senders) or (allowlist and not allowed(address, allowlist)):
+    if not match(address) or (allowlist and not allowed(address, allowlist)):
         return None
     try:
         when = parsedate_to_datetime(msg["Date"])
@@ -142,7 +144,7 @@ def parse(raw, senders, allowlist):
     return when, sender, subject, re.sub(r"\n\s*\n+", "\n", text).strip()
 
 
-def fetch_recent(account, cutoff, senders, allowlist):
+def fetch_recent(account, cutoff, match, allowlist):
     """cutoff 이후 지정한 발신자의 메일을 최신순으로 돌려준다."""
     imap = connect(account)
     # readonly + BODY.PEEK: 읽음 표시도 남기지 않는다
@@ -151,7 +153,7 @@ def fetch_recent(account, cutoff, senders, allowlist):
     _, data = imap.search(None, "SINCE", since)
     for msg_id in reversed(data[0].split()[-50:]):
         _, parts = imap.fetch(msg_id, "(BODY.PEEK[])")
-        mail = parse(parts[0][1], senders, allowlist)
+        mail = parse(parts[0][1], match, allowlist)
         if mail and mail[0] >= cutoff:
             yield mail
     imap.logout()
@@ -235,25 +237,38 @@ def cmd_add(args):
     print(f"saved [{args.name}] {user} @ {host}")
 
 
-def require_setup(args):
+def sender_matcher(args, allowlist):
+    """발신자 인자를 '주소 -> 일치 여부' 함수로 바꾼다."""
+    if args.regex:
+        try:
+            patterns = [re.compile(p.strip(), re.I) for p in args.senders]
+        except re.error as e:
+            raise SystemExit(f"bad regular expression: {e}")
+        # 정규식은 미리 allow 파일과 비교할 수 없으므로 메일마다 parse()에서 확인한다
+        return lambda address: any(p.fullmatch(address) for p in patterns)
+
     senders = [s.strip().lower() for s in args.senders]
     for entry in senders:
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+|@?[^@\s]+\.[^@\s]+", entry):
-            raise SystemExit(f"not a mail address or @domain: {entry}")
-    # allow 파일이 있으면 그 밖의 발신자는 지정할 수 없다
-    allowlist = load_allowlist()
-    for entry in senders:
+            raise SystemExit(f"not a mail address or @domain: {entry} (use -E for a regular expression)")
+        # allow 파일이 있으면 그 밖의 발신자는 지정할 수 없다
         probe = entry if "@" in entry.lstrip("@") else "x@" + entry.lstrip("@")
         if allowlist and not allowed(probe, allowlist):
             raise SystemExit(f"{entry} is not in {ALLOW_FILE}")
+    return lambda address: allowed(address, senders)
+
+
+def require_setup(args):
+    allowlist = load_allowlist()
+    match = sender_matcher(args, allowlist)
     accounts = load_accounts(args.account)
     if not accounts:
         raise SystemExit("no accounts: run `mail-otp add <name>` first")
-    return senders, allowlist, accounts
+    return match, ", ".join(args.senders), allowlist, accounts
 
 
 def cmd_watch(args):
-    senders, allowlist, accounts = require_setup(args)
+    match, label, allowlist, accounts = require_setup(args)
     watchers = []
     for account in accounts:
         try:
@@ -266,7 +281,7 @@ def cmd_watch(args):
     timeout = args.timeout if args.timeout is not None else (0 if args.keep else 300)
     deadline = time.monotonic() + timeout if timeout else None
     names = ", ".join(w.account["name"] for w in watchers)
-    print(f"waiting for mail from {', '.join(senders)} ({names}); Ctrl+C to stop", file=sys.stderr, flush=True)
+    print(f"waiting for mail from {label} ({names}); Ctrl+C to stop", file=sys.stderr, flush=True)
     try:
         while deadline is None or time.monotonic() < deadline:
             for watcher in watchers:
@@ -279,7 +294,7 @@ def cmd_watch(args):
                         print(f"[{watcher.account['name']}] reconnect failed: {e}", file=sys.stderr)
                     continue
                 for raw in raws:
-                    mail = parse(raw, senders, allowlist)
+                    mail = parse(raw, match, allowlist)
                     if not mail:
                         continue
                     if sys.stdout.isatty():
@@ -293,39 +308,43 @@ def cmd_watch(args):
     finally:
         for watcher in watchers:
             watcher.close()
-    print(f"no new mail from {', '.join(senders)} within {timeout} seconds", file=sys.stderr)
+    print(f"no new mail from {label} within {timeout} seconds", file=sys.stderr)
     sys.exit(1)
 
 
 def cmd_recent(args):
-    senders, allowlist, accounts = require_setup(args)
+    match, label, allowlist, accounts = require_setup(args)
     cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=args.since)
     found = 0
     for account in accounts:
         try:
-            for mail in fetch_recent(account, cutoff, senders, allowlist):
+            for mail in fetch_recent(account, cutoff, match, allowlist):
                 found += 1
                 show(account["name"], mail, args.full)
         except (imaplib.IMAP4.error, OSError) as e:
             print(f"[{account['name']}] error: {e}", file=sys.stderr)
     if not found:
-        print(f"no mail from {', '.join(senders)} in the last {args.since} minutes")
+        print(f"no mail from {label} in the last {args.since} minutes")
 
 
 def main():
     # 발신자를 위치 인자로 받으므로 하위 명령은 첫 단어를 보고 직접 나눈다
     argv = sys.argv[1:]
-    command = argv[0] if argv and argv[0] in ("recent", "add") else "watch"
+    command = argv[0] if argv and argv[0] in ("recent", "add", "guide") else "watch"
     if command != "watch":
         argv = argv[1:]
 
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("senders", nargs="+", metavar="sender",
                         help="mail address (noreply@github.com) or domain (@github.com) to accept mail from")
+    common.add_argument("-E", "--regex", action="store_true",
+                        help="treat each sender as a regular expression the whole address must match")
     common.add_argument("--account", help="use only this account")
     common.add_argument("--full", action="store_true", help="print the full body (for magic links)")
 
-    if command == "add":
+    if command == "guide":
+        print(files("mail_otp").joinpath("AGENT.md").read_text(encoding="utf-8"), end="")
+    elif command == "add":
         ap = argparse.ArgumentParser(prog="mail-otp add",
                                      description="Add or update an account. The login is tested before saving.")
         ap.add_argument("name", help=f"account name; {', '.join(KNOWN_HOSTS)} fill in the host")
@@ -342,7 +361,7 @@ def main():
         ap = argparse.ArgumentParser(
             prog="mail-otp",
             usage="%(prog)s [options] sender [sender ...]\n       %(prog)s recent [options] sender [sender ...]\n"
-                  "       %(prog)s add [options] name",
+                  "       %(prog)s add [options] name\n       %(prog)s guide    (instructions for AI agents)",
             description="Wait for the next mail from the sender and print its code (read-only IMAP).",
             epilog=EPILOG,
             formatter_class=argparse.RawDescriptionHelpFormatter,

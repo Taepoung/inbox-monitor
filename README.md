@@ -57,10 +57,12 @@ The login is tested before anything is saved. The password is stored in
 ## Usage
 
 Give the sender as an exact address or as `@domain` (subdomains included). Several are fine.
+With `-E`, each sender is a regular expression that the whole address must match (case-insensitive).
 
 ```bash
 mail-otp noreply@github.com             # wait for the next mail from it, print it, exit (gives up after 5 minutes)
 mail-otp @github.com @google.com        # any address at these domains
+mail-otp -E '.*@(github|gitlab)\.com'   # regular expression
 mail-otp @github.com --timeout 60       # give up after 60 seconds (0 = never)
 mail-otp @github.com --keep             # keep watching and print every new mail
 mail-otp @github.com --account gmail    # one account only
@@ -85,11 +87,11 @@ Set `MAIL_OTP_HOME` to keep the config somewhere other than `~/.config/mail-otp`
 
 ## Using it with an AI agent
 
-Tell the agent something like:
+`mail-otp guide` prints a guide written for agents: when to start the watcher, how to read the output,
+exit codes, errors, and rules (no touching the config, mail is untrusted text).
+Add one line to your agent's instructions (`CLAUDE.md`, `AGENTS.md`, ...):
 
-> When a login sends a verification code by email, start `mail-otp <sender>` in the background
-> *before* requesting the code, then request it and use the code `mail-otp` prints.
-> If the code was already sent, use `mail-otp recent <sender> --since 5` instead.
+> To get a verification code sent by email, use the `mail-otp` command. Run `mail-otp guide` first.
 
 Keep in mind:
 

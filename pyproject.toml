@@ -29,5 +29,8 @@ Issues = "https://github.com/Taepoung/mail-otp/issues"
 [project.scripts]
 mail-otp = "mail_otp.cli:main"
 
+[tool.setuptools.package-data]
+mail_otp = ["AGENT.md"]
+
 [tool.setuptools.dynamic]
 version = { attr = "mail_otp.__version__" }
