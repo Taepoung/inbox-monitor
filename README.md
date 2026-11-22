@@ -46,18 +46,32 @@ Hey there! A sign in attempt requires further verification ...
 
 ### 2. Add the account
 
-```bash
-mail-otp add naver            # naver, gmail, daum, kakao, yahoo, icloud fill in the host
-mail-otp add work --host imap.example.com --user me@example.com
+```
+$ mail-otp add
+name (used in list/watch): naver
+IMAP host (e.g. imap.naver.com): imap.naver.com
+port [993]:
+user: myid
+password (app password if you use 2-step login):
+saved 'naver': myid @ imap.naver.com:993
 ```
 
-The login is tested before anything is saved. The password is stored in
+| Mailbox | IMAP host (port 993) |
+|---|---|
+| Naver | `imap.naver.com` |
+| Gmail | `imap.gmail.com` |
+| Daum | `imap.daum.net` |
+| Kakao | `imap.kakao.com` |
+
+Everything except the password can also be given on the command line:
+`mail-otp add work --host imap.example.com --port 993 --user me@example.com`.
+Adding an existing name replaces it. The login is tested before anything is saved. The password is stored in
 `~/.config/mail-otp/<name>.pw` with mode 600.
 
 ## Usage
 
 ```bash
-mail-otp add naver                            # add an IMAP account
+mail-otp add                                  # add an IMAP account
 mail-otp list                                 # list accounts
 mail-otp watch naver 'noreply@github\.com'    # wait for the next mail from it, print it, exit
 mail-otp help                                 # full help, including a section for AI agents

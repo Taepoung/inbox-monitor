@@ -23,15 +23,6 @@ CODE_RE = re.compile(r"(?<![\d-])(\d{4,8})(?![\d-])")
 KEYWORDS = re.compile(r"인증|코드|번호|code|verif|otp|pin|login|로그인", re.I)
 NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
 
-# 계정 이름만으로 호스트를 채워 주는 잘 알려진 서비스들
-KNOWN_HOSTS = {
-    "naver": "imap.naver.com",
-    "gmail": "imap.gmail.com",
-    "daum": "imap.daum.net",
-    "kakao": "imap.kakao.com",
-    "yahoo": "imap.mail.yahoo.com",
-    "icloud": "imap.mail.me.com",
-}
 
 def read_config():
     config = configparser.ConfigParser()
@@ -160,16 +151,27 @@ def write_private(path, text):
     os.chmod(path, 0o600)
 
 
-def cmd_add(args):
-    if not NAME_RE.fullmatch(args.name):
-        raise SystemExit("account name may only contain letters, digits, '-' and '_'")
-    host = args.host or KNOWN_HOSTS.get(args.name)
-    if not host:
-        raise SystemExit(f"--host is required (known names: {', '.join(KNOWN_HOSTS)})")
-    user = args.user or input("user: ").strip()
-    password = getpass.getpass("password (app password if you use 2FA): ")
+def ask(prompt, default=None):
+    """값을 물어보고, 빈 입력이면 기본값을 쓴다. 기본값도 없으면 다시 묻는다."""
+    while True:
+        value = input(f"{prompt} [{default}]: " if default else f"{prompt}: ").strip()
+        if value or default:
+            return value or default
 
-    account = {"name": args.name, "host": host, "port": args.port, "user": user, "password": password}
+
+def cmd_add(args):
+    name = args.name or ask("name (used in list/watch)")
+    if not NAME_RE.fullmatch(name):
+        raise SystemExit("name may only contain letters, digits, '-' and '_'")
+    host = args.host or ask("IMAP host (e.g. imap.naver.com)")
+    port = args.port or ask("port", "993")
+    if not str(port).isdigit():
+        raise SystemExit(f"port must be a number: {port}")
+    port = int(port)
+    user = args.user or ask("user")
+    password = getpass.getpass("password (app password if you use 2-step login): ")
+
+    account = {"name": name, "host": host, "port": port, "user": user, "password": password}
     try:
         connect(account).logout()
     except (imaplib.IMAP4.error, OSError) as e:
@@ -178,13 +180,11 @@ def cmd_add(args):
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     os.chmod(CONFIG_DIR, 0o700)
     config = read_config()
-    config[args.name] = {"host": host, "user": user}
-    if args.port != 993:
-        config[args.name]["port"] = str(args.port)
+    config[name] = {"host": host, "port": str(port), "user": user}
     with open(ACCOUNTS_FILE, "w") as f:
         config.write(f)
-    write_private(CONFIG_DIR / f"{args.name}.pw", password)
-    print(f"saved [{args.name}] {user} @ {host}")
+    write_private(CONFIG_DIR / f"{name}.pw", password)
+    print(f"saved '{name}': {user} @ {host}:{port}")
 
 
 def cmd_list(args):
@@ -194,7 +194,7 @@ def cmd_list(args):
         return
     for name in config.sections():
         section = config[name]
-        print(f"{name}\t{section['user']}\t{section['host']}")
+        print(f"{name}\t{section['user']}\t{section['host']}:{section.get('port', '993')}")
 
 
 def cmd_watch(args):
@@ -262,11 +262,13 @@ def main():
     ap.add_argument("-V", "--version", action="version", version=f"mail-otp {__version__}")
     sub = ap.add_subparsers(dest="command")
 
-    add = sub.add_parser("add", help="add or update an IMAP account (tests the login before saving)")
-    add.add_argument("name", help=f"account name; {', '.join(KNOWN_HOSTS)} fill in the host")
-    add.add_argument("--host", help="IMAP server")
-    add.add_argument("--port", type=int, default=993, help="IMAP SSL port (default 993)")
-    add.add_argument("--user", help="login name (asked if omitted)")
+    add = sub.add_parser("add", help="add or update an IMAP account (tests the login before saving)",
+                         description="Add or update an IMAP account. Anything not given is asked; "
+                                     "the password is always asked. The login is tested before saving.")
+    add.add_argument("name", nargs="?", help="name to use in list/watch")
+    add.add_argument("--host", help="IMAP server, e.g. imap.naver.com")
+    add.add_argument("--port", help="IMAP SSL port (default 993)")
+    add.add_argument("--user", help="login name")
 
     sub.add_parser("list", help="list accounts")
 
