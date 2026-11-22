@@ -118,7 +118,8 @@ class Watcher:
 
     def poll(self):
         """새로 도착한 메일의 원문을 차례로 돌려준다."""
-        self.imap.noop()
+        # 네이버 등은 NOOP만으로는 새 메일을 알려주지 않아서 매번 INBOX를 다시 연다
+        self.imap.select("INBOX", readonly=True)
         _, data = self.imap.uid("SEARCH", None, f"UID {self.next_uid}:*")
         # "n:*"는 새 메일이 없어도 마지막 메일을 돌려주므로 UID로 다시 거른다
         uids = sorted(int(u) for u in data[0].split() if int(u) >= self.next_uid)
