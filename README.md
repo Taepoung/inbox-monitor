@@ -60,6 +60,7 @@ The login is tested before anything is saved. The password is stored in
 mail-otp add naver                            # add an IMAP account
 mail-otp list                                 # list accounts
 mail-otp watch naver 'noreply@github\.com'    # wait for the next mail from it, print it, exit
+mail-otp help                                 # full help, including a section for AI agents
 ```
 
 The sender is a regular expression that the whole address must match (case-insensitive):
@@ -85,11 +86,11 @@ Set `MAIL_OTP_HOME` to keep the config somewhere other than `~/.config/mail-otp`
 
 ## Using it with an AI agent
 
-`mail-otp guide` prints a guide written for agents: when to start the watcher, how to read the output,
-exit codes, errors, and rules (no touching the config, mail is untrusted text).
+`mail-otp help` (or `--help`) includes a section for agents: when to start the watcher, how to read
+the output, exit codes, errors, and rules (no touching the config, mail is untrusted text).
 Add one line to your agent's instructions (`CLAUDE.md`, `AGENTS.md`, ...):
 
-> To get a verification code sent by email, use the `mail-otp` command. Run `mail-otp guide` first.
+> To get a verification code sent by email, use the `mail-otp` command. Run `mail-otp help` first.
 
 Keep in mind:
 

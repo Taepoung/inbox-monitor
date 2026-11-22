@@ -239,14 +239,28 @@ def cmd_watch(args):
     sys.exit(1)
 
 
+def print_help():
+    text = files("mail_otp").joinpath("HELP.md").read_text(encoding="utf-8")
+    print(text.replace("~/.config/mail-otp", str(CONFIG_DIR)), end="")
+
+
+class HelpAction(argparse.Action):
+    """-h/--help도 help 명령과 같은 설명서를 보여준다."""
+
+    def __init__(self, option_strings, dest, **kwargs):
+        super().__init__(option_strings, dest, nargs=0, default=argparse.SUPPRESS, help="show the full help")
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        print_help()
+        parser.exit()
+
+
 def main():
-    ap = argparse.ArgumentParser(
-        prog="mail-otp",
-        description="Wait for the next verification mail and print its code (read-only IMAP).",
-        epilog=f"config: {CONFIG_DIR} (accounts.ini, <name>.pw)",
-    )
+    # 최상위 도움말은 argparse 대신 HELP.md 하나로 통일한다
+    ap = argparse.ArgumentParser(prog="mail-otp", add_help=False)
+    ap.add_argument("-h", "--help", action=HelpAction)
     ap.add_argument("-V", "--version", action="version", version=f"mail-otp {__version__}")
-    sub = ap.add_subparsers(dest="command", required=True)
+    sub = ap.add_subparsers(dest="command")
 
     add = sub.add_parser("add", help="add or update an IMAP account (tests the login before saving)")
     add.add_argument("name", help=f"account name; {', '.join(KNOWN_HOSTS)} fill in the host")
@@ -270,7 +284,7 @@ def main():
     watch.add_argument("--full", action="store_true", help="print the full body (for login links)")
     watch.add_argument("--interval", type=float, default=3, help="seconds between checks (default 3)")
 
-    sub.add_parser("guide", help="print the guide for AI agents")
+    sub.add_parser("help", help="show the full help")
     args = ap.parse_args()
 
     if args.command == "add":
@@ -280,4 +294,4 @@ def main():
     elif args.command == "watch":
         cmd_watch(args)
     else:
-        print(files("mail_otp").joinpath("AGENT.md").read_text(encoding="utf-8"), end="")
+        print_help()
