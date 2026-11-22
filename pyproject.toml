@@ -3,14 +3,14 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mail-otp"
+name = "inbox-monitor"
 dynamic = ["version"]
 description = "Wait for the next mail from a sender and print it in the terminal, for you or your AI agent"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "TaeinYoon" }]
-keywords = ["imap", "otp", "2fa", "email", "cli", "agent"]
+keywords = ["imap", "email", "monitor", "otp", "2fa", "cli", "agent"]
 requires-python = ">=3.10"
 dependencies = []
 classifiers = [
@@ -22,15 +22,15 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Taepoung/mail-otp"
-Repository = "https://github.com/Taepoung/mail-otp"
-Issues = "https://github.com/Taepoung/mail-otp/issues"
+Homepage = "https://github.com/Taepoung/inbox-monitor"
+Repository = "https://github.com/Taepoung/inbox-monitor"
+Issues = "https://github.com/Taepoung/inbox-monitor/issues"
 
 [project.scripts]
-mail-otp = "mail_otp.cli:main"
+inbox-monitor = "inbox_monitor.cli:main"
 
 [tool.setuptools.package-data]
-mail_otp = ["HELP.md"]
+inbox_monitor = ["HELP.md"]
 
 [tool.setuptools.dynamic]
-version = { attr = "mail_otp.__version__" }
+version = { attr = "inbox_monitor.__version__" }

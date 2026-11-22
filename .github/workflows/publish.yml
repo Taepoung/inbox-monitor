@@ -15,7 +15,7 @@ jobs:
           python-version: "3.x"
       - name: Check that the release tag matches the package version
         run: |
-          version=$(python -c "import re; print(re.search(r'__version__ = \"(.+?)\"', open('src/mail_otp/__init__.py').read())[1])")
+          version=$(python -c "import re; print(re.search(r'__version__ = \"(.+?)\"', open('src/inbox_monitor/__init__.py').read())[1])")
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
             echo "::error::release tag $GITHUB_REF_NAME does not match package version v$version"
             exit 1
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/mail-otp/
+      url: https://pypi.org/project/inbox-monitor/
     permissions:
       id-token: write   # Trusted Publishing
     steps:

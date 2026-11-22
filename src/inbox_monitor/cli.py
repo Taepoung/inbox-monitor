@@ -1,4 +1,4 @@
-"""mail-otp: wait for the next mail from a sender and print it (read-only IMAP)."""
+"""inbox-monitor: wait for the next mail from a sender and print it (read-only IMAP)."""
 import argparse
 import configparser
 import datetime as dt
@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import __version__
 
-CONFIG_DIR = Path(os.environ.get("MAIL_OTP_HOME", "~/.config/mail-otp")).expanduser()
+CONFIG_DIR = Path(os.environ.get("INBOX_MONITOR_HOME", "~/.config/inbox-monitor")).expanduser()
 ACCOUNTS_FILE = CONFIG_DIR / "accounts.ini"
 NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
 
@@ -31,7 +31,7 @@ def read_config():
 def load_account(name):
     config = read_config()
     if not config.has_section(name):
-        known = ", ".join(config.sections()) or "none; run `mail-otp add`"
+        known = ", ".join(config.sections()) or "none; run `inbox-monitor add`"
         raise SystemExit(f"no account '{name}' (accounts: {known})")
     section = config[name]
     return {
@@ -197,7 +197,7 @@ def cmd_del(args):
 def cmd_list(args):
     config = read_config()
     if not config.sections():
-        print("no accounts; run `mail-otp add`")
+        print("no accounts; run `inbox-monitor add`")
         return
     for name in config.sections():
         section = config[name]
@@ -247,8 +247,8 @@ def cmd_watch(args):
 
 
 def print_help():
-    text = files("mail_otp").joinpath("HELP.md").read_text(encoding="utf-8")
-    print(text.replace("~/.config/mail-otp", str(CONFIG_DIR)), end="")
+    text = files("inbox_monitor").joinpath("HELP.md").read_text(encoding="utf-8")
+    print(text.replace("~/.config/inbox-monitor", str(CONFIG_DIR)), end="")
 
 
 class HelpAction(argparse.Action):
@@ -264,9 +264,9 @@ class HelpAction(argparse.Action):
 
 def main():
     # 최상위 도움말은 argparse 대신 HELP.md 하나로 통일한다
-    ap = argparse.ArgumentParser(prog="mail-otp", add_help=False)
+    ap = argparse.ArgumentParser(prog="inbox-monitor", add_help=False)
     ap.add_argument("-h", "--help", action=HelpAction)
-    ap.add_argument("-V", "--version", action="version", version=f"mail-otp {__version__}")
+    ap.add_argument("-V", "--version", action="version", version=f"inbox-monitor {__version__}")
     sub = ap.add_subparsers(dest="command")
 
     add = sub.add_parser("add", help="add or update an IMAP account (tests the login before saving)",
@@ -280,17 +280,17 @@ def main():
     sub.add_parser("list", help="list accounts")
 
     delete = sub.add_parser("del", help="delete an account and its saved password")
-    delete.add_argument("name", help="account name from `mail-otp list`")
+    delete.add_argument("name", help="account name from `inbox-monitor list`")
     delete.add_argument("-y", "--yes", action="store_true", help="don't ask for confirmation")
 
     watch = sub.add_parser(
         "watch", help="wait for the next mail from a sender and print it",
         description="Wait for the next mail whose sender address fully matches the regular expression "
                     "(case-insensitive), print it and exit.",
-        epilog="examples:\n  mail-otp watch naver 'noreply@github\\.com'\n  mail-otp watch naver '.*@(github|gitlab)\\.com'",
+        epilog="examples:\n  inbox-monitor watch naver 'noreply@github\\.com'\n  inbox-monitor watch naver '.*@(github|gitlab)\\.com'",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    watch.add_argument("account", help="account name from `mail-otp list`")
+    watch.add_argument("account", help="account name from `inbox-monitor list`")
     watch.add_argument("sender", help="regular expression for the sender address")
     watch.add_argument("--timeout", type=int, help="give up after this many seconds (default 300, 0 = never)")
     watch.add_argument("--keep", action="store_true", help="keep watching after the first mail (no timeout by default)")

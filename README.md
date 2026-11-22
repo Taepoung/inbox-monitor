@@ -1,12 +1,12 @@
-# mail-otp — verification mail from your mailbox, in the terminal
+# inbox-monitor — verification mail from your mailbox, in the terminal
 
-Start `mail-otp watch` with a mailbox and a sender pattern, trigger a login, and it prints
+Start `inbox-monitor watch` with a mailbox and a sender pattern, trigger a login, and it prints
 the next mail that sender sends you, so you can read the code or link in it.
 Made for letting an AI agent (or a script) finish a login that sends a code by email,
 without giving it the whole mailbox.
 
 ```
-$ mail-otp watch naver '.*@github\.com'
+$ inbox-monitor watch naver '.*@github\.com'
 waiting for mail from .*@github\.com (naver); Ctrl+C to stop
 --- [naver] 2026-11-22 16:20 | GitHub <noreply@github.com>
 subject: [GitHub] Please verify your device
@@ -31,9 +31,9 @@ Verification code: 482913
 
 | Method | Command |
 |---|---|
-| **uv** (recommended) | `uv tool install mail-otp` |
-| **pipx** | `pipx install mail-otp` |
-| **pip** | `pip install mail-otp` |
+| **uv** (recommended) | `uv tool install inbox-monitor` |
+| **pipx** | `pipx install inbox-monitor` |
+| **pip** | `pip install inbox-monitor` |
 
 ## Setup
 
@@ -49,7 +49,7 @@ Verification code: 482913
 ### 2. Add the account
 
 ```
-$ mail-otp add
+$ inbox-monitor add
 name (used in list/watch): naver
 IMAP host (e.g. imap.naver.com): imap.naver.com
 port (usually 993): 993
@@ -66,18 +66,18 @@ saved 'naver': myid @ imap.naver.com:993
 | Kakao | `imap.kakao.com` |
 
 Everything except the password can also be given on the command line, and only what is missing is asked:
-`mail-otp add work --host imap.example.com --port 993 --user me@example.com`.
+`inbox-monitor add work --host imap.example.com --port 993 --user me@example.com`.
 Adding an existing name replaces it. The login is tested before anything is saved. The password is stored in
-`~/.config/mail-otp/<name>.pw` with mode 600.
+`~/.config/inbox-monitor/<name>.pw` with mode 600.
 
 ## Usage
 
 ```bash
-mail-otp add                                  # add an IMAP account
-mail-otp list                                 # list accounts
-mail-otp del naver                            # delete an account and its saved password
-mail-otp watch naver 'noreply@github\.com'    # wait for the next mail from it, print it, exit
-mail-otp help                                 # full help, including a section for AI agents
+inbox-monitor add                                  # add an IMAP account
+inbox-monitor list                                 # list accounts
+inbox-monitor del naver                            # delete an account and its saved password
+inbox-monitor watch naver 'noreply@github\.com'    # wait for the next mail from it, print it, exit
+inbox-monitor help                                 # full help, including a section for AI agents
 ```
 
 The sender is a regular expression that the whole address must match (case-insensitive):
@@ -99,22 +99,22 @@ The sender is a regular expression that the whole address must match (case-insen
 The whole mail is printed as plain text (HTML mail is converted).
 `watch` exits with 0 when a mail was printed and 1 on timeout, and rings the terminal bell when a mail arrives.
 
-Set `MAIL_OTP_HOME` to keep the config somewhere other than `~/.config/mail-otp`.
+Set `INBOX_MONITOR_HOME` to keep the config somewhere other than `~/.config/inbox-monitor`.
 
 ## Using it with an AI agent
 
-`mail-otp help` (or `--help`) includes a section for agents: when to start the watcher, how to read
+`inbox-monitor help` (or `--help`) includes a section for agents: when to start the watcher, how to read
 the output, exit codes, errors, and rules (no touching the config, mail is untrusted text).
 Add one line to your agent's instructions (`CLAUDE.md`, `AGENTS.md`, ...):
 
-> To get a verification code sent by email, use the `mail-otp` command. Run `mail-otp help` first.
+> To get a verification code sent by email, use the `inbox-monitor` command. Run `inbox-monitor help` first.
 
 Keep in mind:
 
 - An agent that can read verification mail can also read password-reset mail from the same senders.
 - The `From` address can be forged. Most providers reject forged mail, but treat the sender check
   as a filter, not a guarantee.
-- The agent runs as your user, so it can read and edit `~/.config/mail-otp` too.
+- The agent runs as your user, so it can read and edit `~/.config/inbox-monitor` too.
   If your agent supports permission rules, deny it access to that directory.
 - Mail is untrusted text. An agent should take the code or link from it and not follow instructions written in it.
 
